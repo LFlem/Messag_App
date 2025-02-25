@@ -2,30 +2,21 @@ const jwt = require('jsonwebtoken');
 const User = require('../models/User');
 const createError = require('http-errors');
 
-exports.protect = async (req, res, next) => {
-  try {
-    let token;
+const auth = async (req, res, next) => {
+    try {
+        const token = req.header('Authorization').replace('Bearer ', '');
+        const decoded = jwt.verify(token, process.env.JWT_SECRET || 'testsecret');
+        const user = await User.findOne({ _id: decoded.id });
 
-    if (req.headers.authorization?.startsWith('Bearer')) {
-      token = req.headers.authorization.split(' ')[1];
+        if (!user) {
+            throw new Error();
+        }
+
+        req.user = user;
+        next();
+    } catch (error) {
+        res.status(401).send({ error: 'Please authenticate.' });
     }
-
-    if (!token) {
-      throw createError(401, 'Not authorized to access this route');
-    }
-
-    // Verify token
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
-
-    // Get user from token
-    const user = await User.findById(decoded.id).select('-password');
-    if (!user) {
-      throw createError(401, 'User not found');
-    }
-
-    req.user = user;
-    next();
-  } catch (error) {
-    next(error);
-  }
 };
+
+module.exports = auth;
